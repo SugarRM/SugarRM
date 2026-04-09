@@ -1,45 +1,48 @@
 import asyncio
-import logging
-import os
 import random
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from aiogram.exceptions import TelegramConflictError
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from sqlalchemy import create_engine, Column, Integer, BigInteger, String, DateTime
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-from sqlalchemy import create_engine, Column, Integer, String, DateTime
-from sqlalchemy.orm import declarative_base, Session
-
+# -------------------------
+# Настройки
+# -------------------------
 TOKEN = "8328136805:AAFtDSd5r9fn5nbKkdcpvdvVn-zlAIDIUNk"
-DB_FILE = "sqlite:////app/data/bot.db"  # Привяжи к persistent 
+
+# URL подключения к PostgreSQL
+DB_URL = "postgresql://myuser:mypassword@localhost:5432/mydb"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 COOLDOWN = timedelta(minutes=10)
 
-# 🔹 SQLAlchemy
+# -------------------------
+# Настройка базы данных
+# -------------------------
 Base = declarative_base()
 
 class User(Base):
     __tablename__ = 'users'
-    user_id = Column(Integer, primary_key=True)
-    name = Column(String)
-    best = Column(Integer, default=0)
-    last_size = Column(Integer, default=0)
-    total = Column(Integer, default=0)
-    last_time = Column(DateTime)
+    user_id = Column(BigInteger, primary_key=True)        # Telegram ID
+    name = Column(String, nullable=False)               # Имя
+    best = Column(Integer, default=0)                   # Лучший результат
+    last_size = Column(Integer, default=0)              # Последний результат
+    total = Column(Integer, default=0)                  # Суммарно залито
+    last_time = Column(DateTime)                         # Время последнего заливания
 
-os.makedirs('/app/data', exist_ok=True)
-engine = create_engine(DB_FILE, echo=False, future=True)
+engine = create_engine(DB_URL, echo=False, future=True)
+SessionLocal = sessionmaker(bind=engine)
 Base.metadata.create_all(engine)
-session = Session(engine)
 
-# 🔹 /start
+# -------------------------
+# Команды
+# -------------------------
+
 @dp.message(Command("start"))
 async def start_handler(message: types.Message):
     username = message.from_user.first_name
@@ -55,13 +58,14 @@ async def start_handler(message: types.Message):
     )
     await message.answer(text, parse_mode="Markdown")
 
-# 🔹 /ebat
+
 @dp.message(Command("ebat"))
 async def ebat_handler(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.first_name
     now = datetime.now()
 
+    session = SessionLocal()
     user = session.get(User, user_id)
 
     # Проверка кулдауна
@@ -74,36 +78,49 @@ async def ebat_handler(message: types.Message):
                 f"{username}, ты уже залил его 😏\n"
                 f"Попробовать снова можно через: {minutes} мин {seconds} сек"
             )
+            session.close()
             return
 
     # Генерация литров
     size = random.randint(1, 20)
 
-    # повышенный шанс на супер результат для твоего ID
-    if user_id == 6824282520:
+    # Шанс на супер результат для твоего ID
+    if message.from_user.id == 6824282520:  # <- твой Telegram ID
         if random.random() < 0.5:  # 50% шанс
             size = random.randint(50, 200)
     else:
-        if random.random() < 0.1:  # обычный игрок 10%
+        if random.random() < 0.1:  # обычные игроки
             size = random.randint(50, 200)
 
-    # Добавление или обновление пользователя
+    # Добавляем или обновляем пользователя
     if not user:
-        user = User(user_id=user_id, name=username, best=size, last_size=size, total=size, last_time=now)
+        user = User(
+            user_id=user_id,
+            name=username,
+            best=size,
+            last_size=size,
+            total=size,
+            last_time=now
+        )
         session.add(user)
     else:
         user.last_size = size
         user.last_time = now
         user.best = max(user.best, size)
-        user.total += size  # добавляем литры к суммарному результату
+        user.total += size
 
     session.commit()
+    session.close()
+
     await message.reply(f"{username}, ты залил чидори @chidori_offIine: {size} л спермы 😏")
 
-# 🔹 /top
+
 @dp.message(Command("top"))
 async def top_handler(message: types.Message):
-    users = session.query(User).order_by(User.total.desc()).all()
+    session = SessionLocal()
+    users = session.query(User).order_by(User.total.desc()).limit(10).all()
+    session.close()
+
     if not users:
         await message.answer("Пока нет данных 🤷")
         return
@@ -114,11 +131,14 @@ async def top_handler(message: types.Message):
 
     await message.answer(text)
 
-# 🔹 /me
+
 @dp.message(Command("me"))
 async def me_handler(message: types.Message):
     user_id = message.from_user.id
+    session = SessionLocal()
     user = session.get(User, user_id)
+    session.close()
+
     if not user:
         await message.answer("Ты ещё не заливал чидори спермой браток 🤷")
         return
@@ -130,19 +150,11 @@ async def me_handler(message: types.Message):
         f"Суммарно залито: {user.total} л"
     )
 
-# 🔹 запуск
+# -------------------------
+# Запуск
+# -------------------------
 async def main():
-    while True:
-        try:
-            logger.info("Starting polling...")
-            await dp.start_polling(bot)
-        except TelegramConflictError:
-            logger.warning("TelegramConflictError: another instance is running. Waiting 15 seconds before retrying...")
-            await asyncio.sleep(15)
-        except Exception as e:
-            logger.error(f"Unexpected error: {e}. Waiting 10 seconds before retrying...")
-            await asyncio.sleep(10)
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
-
