@@ -1,4 +1,5 @@
 import asyncio
+import os
 import random
 from datetime import datetime, timedelta
 
@@ -11,10 +12,14 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 # -------------------------
 # Настройки
 # -------------------------
-TOKEN = "8328136805:AAFtDSd5r9fn5nbKkdcpvdvVn-zlAIDIUNk"
+TOKEN = os.environ.get("BOT_TOKEN")  # Токен бота из переменных окружения
+if not TOKEN:
+    raise Exception("BOT_TOKEN не задан!")
 
 # URL подключения к PostgreSQL
-DB_URL = "postgresql+psycopg2://username:password@localhost:5432/dbname"
+DB_URL = os.environ.get("DATABASE_PUBLIC_URL")
+if not DB_URL:
+    raise Exception("DATABASE_PUBLIC_URL не задана!")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -57,7 +62,6 @@ async def start_handler(message: types.Message):
         "Спасибо за поддержку ❤️"
     )
     await message.answer(text, parse_mode="Markdown")
-
 
 @dp.message(Command("ebat"))
 async def ebat_handler(message: types.Message):
@@ -114,7 +118,6 @@ async def ebat_handler(message: types.Message):
 
     await message.reply(f"{username}, ты залил чидори @chidori_offIine: {size} л спермы 😏")
 
-
 @dp.message(Command("top"))
 async def top_handler(message: types.Message):
     session = SessionLocal()
@@ -130,7 +133,6 @@ async def top_handler(message: types.Message):
         text += f"{i}. {user.name} — {user.total} л\n"
 
     await message.answer(text)
-
 
 @dp.message(Command("me"))
 async def me_handler(message: types.Message):
