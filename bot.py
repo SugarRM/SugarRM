@@ -15,7 +15,7 @@ from sqlalchemy import create_engine, Column, Integer, String, DateTime
 from sqlalchemy.orm import declarative_base, Session
 
 TOKEN = "8328136805:AAFtDSd5r9fn5nbKkdcpvdvVn-zlAIDIUNk"
-DB_FILE = "sqlite:////app/data/bot.db"  # Привяжи к persistent disk 
+DB_FILE = "sqlite:////app/data/bot.db"  # Привяжи к persistent 
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
