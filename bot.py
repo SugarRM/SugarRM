@@ -18,7 +18,7 @@ if not TOKEN:
     raise Exception("BOT_TOKEN не задан!")
 
 # URL подключения к PostgreSQL через Railway TCP proxy
-DATABASE_PUBLIC_URL = os.getenv("DATABASE_PUBLIC_URL")
+DATABASE_PUBLIC_URL = "postgresql+psycopg2://postgres:iwsDTDeXnlucLnuvCLvNEcaUOubXSzFk@centerbeam.proxy.rlwy.net:22131/railway"
 if not DATABASE_PUBLIC_URL:
     raise Exception("DATABASE_PUBLIC_URL не задана!")
 
