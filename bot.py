@@ -17,7 +17,9 @@ if not TOKEN:
     raise Exception("BOT_TOKEN не задан!")
 
 # URL подключения к PostgreSQL
-DB_URL = os.environ.get("DATABASE_PUBLIC_URL")
+DB_URL = os.getenv("DATABASE_PUBLIC_URL", "postgresql+psycopg2://postgres:iwsDTDeXnlucLnuvCLvNEcaUOubXSzFk@centerbeam.proxy.rlwy.net:22131/railway")
+
+engine = create_engine(DB_URL, echo=False, future=True)
 if not DB_URL:
     raise Exception("DATABASE_PUBLIC_URL не задана!")
 
