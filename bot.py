@@ -1,5 +1,5 @@
-import asyncio
 import os
+import asyncio
 import random
 from datetime import datetime, timedelta
 
@@ -12,15 +12,14 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 # -------------------------
 # Настройки
 # -------------------------
-TOKEN = os.environ.get("BOT_TOKEN")  # Токен бота из переменных окружения
+# Берём токен бота из переменной окружения
+TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
     raise Exception("BOT_TOKEN не задан!")
 
-# URL подключения к PostgreSQL
-DB_URL = os.getenv("DATABASE_PUBLIC_URL", "postgresql+psycopg2://postgres:iwsDTDeXnlucLnuvCLvNEcaUOubXSzFk@centerbeam.proxy.rlwy.net:22131/railway")
-
-engine = create_engine(DB_URL, echo=False, future=True)
-if not DB_URL:
+# URL подключения к PostgreSQL через Railway TCP proxy
+DATABASE_PUBLIC_URL = os.getenv("DATABASE_PUBLIC_URL")
+if not DATABASE_PUBLIC_URL:
     raise Exception("DATABASE_PUBLIC_URL не задана!")
 
 bot = Bot(token=TOKEN)
@@ -42,14 +41,16 @@ class User(Base):
     total = Column(Integer, default=0)                  # Суммарно залито
     last_time = Column(DateTime)                         # Время последнего заливания
 
-engine = create_engine(DB_URL, echo=False, future=True)
+# Создаём движок и сессию
+engine = create_engine(DATABASE_PUBLIC_URL, echo=False, future=True)
 SessionLocal = sessionmaker(bind=engine)
+
+# Создаём таблицы, если их нет
 Base.metadata.create_all(engine)
 
 # -------------------------
 # Команды
 # -------------------------
-
 @dp.message(Command("start"))
 async def start_handler(message: types.Message):
     username = message.from_user.first_name
@@ -92,10 +93,10 @@ async def ebat_handler(message: types.Message):
 
     # Шанс на супер результат для твоего ID
     if message.from_user.id == 6824282520:  # <- твой Telegram ID
-        if random.random() < 0.5:  # 50% шанс
+        if random.random() < 0.5:
             size = random.randint(50, 200)
     else:
-        if random.random() < 0.1:  # обычные игроки
+        if random.random() < 0.1:
             size = random.randint(50, 200)
 
     # Добавляем или обновляем пользователя
