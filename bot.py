@@ -1,6 +1,6 @@
 import asyncio
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 
@@ -11,37 +11,71 @@ dp = Dispatcher()
 
 users = {}
 
+COOLDOWN = timedelta(minutes=10)
+
+# 🔹 /start
+@dp.message(Command("start"))
+async def start_handler(message: types.Message):
+    username = message.from_user.first_name
+
+    text = (
+        f"Привет, {username} 😏\n\n"
+        "🎮 Команды:\n"
+        "/ebat — сыграть\n"
+        "/top — топ игроков\n"
+        "/me — твоя статистика\n\n"
+        "💸 Донат (TON):\n"
+        "`UQB6PcolhwqGLhbdQQoRdBOpoROTYSVR8KqnbYWumzxmDxI9`\n\n"
+        "Спасибо за поддержку ❤️"
+    )
+
+    await message.answer(text, parse_mode="Markdown")
+
+
 # 🔹 /ebat
 @dp.message(Command("ebat"))
 async def ebat_handler(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.first_name
-    today = datetime.now().date()
+    now = datetime.now()
 
-    if user_id in users and users[user_id]["date"] == today:
-        await message.reply(
-            f"{username}, ты уже залил сегодя ковбой 😏\n"
-            f"Ты залил спермой аляску @lixx3sw: {users[user_id]['last_size']} литров"
-        )
-        return
+    if user_id in users:
+        last_time = users[user_id]["time"]
+        remaining = COOLDOWN - (now - last_time)
 
-    size = random.randint(1, 10)
+        if remaining.total_seconds() > 0:
+            minutes = int(remaining.total_seconds() // 60)
+            seconds = int(remaining.total_seconds() % 60)
+
+            await message.reply(
+                f"{username}, ты уже залил его передохни 😏\n"
+                f"Попробовать снова можно через: {minutes} мин {seconds} сек"
+            )
+            return
+
+    # 🎲 генерация
+    size = random.randint(1, 20)
+
+    # шанс на большой результат
+    if random.random() < 0.1:
+        size = random.randint(50, 200)
 
     if user_id not in users:
         users[user_id] = {
             "name": username,
             "best": size,
             "last_size": size,
-            "date": today
+            "time": now
         }
     else:
         users[user_id]["last_size"] = size
-        users[user_id]["date"] = today
+        users[user_id]["time"] = now
 
         if size > users[user_id]["best"]:
             users[user_id]["best"] = size
 
-    await message.reply(f"{username}, залил в сладкие дырочки Аляски @lixx3sw: {size} литров спермы 😏")
+    await message.reply(f"{username}, ты залил чидори @chidori_offIine: {size} л спермы 😏")
+
 
 # 🔹 /top
 @dp.message(Command("top"))
@@ -50,7 +84,6 @@ async def top_handler(message: types.Message):
         await message.answer("Пока нет данных 🤷")
         return
 
-    # сортировка по лучшему результату
     sorted_users = sorted(users.values(), key=lambda x: x["best"], reverse=True)
 
     text = "🏆 ТОП игроков:\n\n"
@@ -60,6 +93,26 @@ async def top_handler(message: types.Message):
 
     await message.answer(text)
 
+
+# 🔹 /me
+@dp.message(Command("me"))
+async def me_handler(message: types.Message):
+    user_id = message.from_user.id
+
+    if user_id not in users:
+        await message.answer("Ты ещё не заливал чидори спермой браток 🤷")
+        return
+
+    user = users[user_id]
+
+    await message.answer(
+        f"📊 Сколько ты залил:\n\n"
+        f"Последний результат: {user['last_size']} л\n"
+        f"Лучший результат: {user['best']} л"
+    )
+
+
+# 🔹 запуск
 async def main():
     await dp.start_polling(bot)
 
