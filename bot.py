@@ -12,7 +12,7 @@ from sqlalchemy import create_engine, Column, Integer, BigInteger, String, DateT
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 # -------------------------
-# CONFIG
+# CONFI
 # -------------------------
 TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
