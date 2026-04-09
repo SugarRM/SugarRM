@@ -14,7 +14,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 TOKEN = "8328136805:AAFtDSd5r9fn5nbKkdcpvdvVn-zlAIDIUNk"
 
 # URL подключения к PostgreSQL
-DB_URL = "postgresql://myuser:mypassword@localhost:5432/mydb"
+DB_URL = "postgresql+psycopg2://botuser:botpassword@centerbeam.proxy.rlwy.net:22131/botdb?sslmode=require"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
