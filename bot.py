@@ -1,10 +1,15 @@
 import asyncio
+import logging
 import os
 import random
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
+from aiogram.exceptions import TelegramConflictError
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import create_engine, Column, Integer, String, DateTime
 from sqlalchemy.orm import declarative_base, Session
@@ -127,7 +132,17 @@ async def me_handler(message: types.Message):
 
 # 🔹 запуск
 async def main():
-    await dp.start_polling(bot)
+    while True:
+        try:
+            logger.info("Starting polling...")
+            await dp.start_polling(bot)
+        except TelegramConflictError:
+            logger.warning("TelegramConflictError: another instance is running. Waiting 15 seconds before retrying...")
+            await asyncio.sleep(15)
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}. Waiting 10 seconds before retrying...")
+            await asyncio.sleep(10)
 
 if __name__ == "__main__":
     asyncio.run(main())
+
