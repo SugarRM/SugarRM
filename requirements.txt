@@ -2,3 +2,4 @@ aiogram
 sqlalchemy
 psycopg[binary]
 SQLAlchemy
+psycopg2
