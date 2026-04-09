@@ -42,7 +42,9 @@ session = Session(engine)
 # 🔹 /start
 @dp.message(Command("start"))
 async def start_handler(message: types.Message):
+    user_id = message.from_user.id
     username = message.from_user.first_name
+    logger.info(f"/start called by user_id={user_id} username={username!r}")
     text = (
         f"Привет, {username} 😏\n\n"
         "🎮 Команды:\n"
@@ -61,8 +63,10 @@ async def ebat_handler(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.first_name
     now = datetime.now()
+    logger.info(f"/ebat called by user_id={user_id} username={username!r}")
 
     user = session.get(User, user_id)
+    logger.info(f"/ebat DB lookup result for user_id={user_id}: {'found' if user else 'not found'}")
 
     # Проверка кулдауна
     if user and user.last_time:
@@ -91,19 +95,28 @@ async def ebat_handler(message: types.Message):
     if not user:
         user = User(user_id=user_id, name=username, best=size, last_size=size, total=size, last_time=now)
         session.add(user)
+        logger.info(f"/ebat creating new user user_id={user_id} username={username!r} size={size}")
     else:
         user.last_size = size
         user.last_time = now
         user.best = max(user.best, size)
         user.total += size  # добавляем литры к суммарному результату
+        logger.info(f"/ebat updating user user_id={user_id} size={size} new_total={user.total} new_best={user.best}")
 
     session.commit()
+    logger.info(f"/ebat session.commit() completed for user_id={user_id}")
     await message.reply(f"{username}, ты залил чидори @chidori_offIine: {size} л спермы 😏")
+
+
 
 # 🔹 /top
 @dp.message(Command("top"))
 async def top_handler(message: types.Message):
+    user_id = message.from_user.id
+    username = message.from_user.first_name
+    logger.info(f"/top called by user_id={user_id} username={username!r}")
     users = session.query(User).order_by(User.total.desc()).all()
+    logger.info(f"/top DB query returned {len(users)} user(s)")
     if not users:
         await message.answer("Пока нет данных 🤷")
         return
@@ -118,7 +131,10 @@ async def top_handler(message: types.Message):
 @dp.message(Command("me"))
 async def me_handler(message: types.Message):
     user_id = message.from_user.id
+    username = message.from_user.first_name
+    logger.info(f"/me called by user_id={user_id} username={username!r}")
     user = session.get(User, user_id)
+    logger.info(f"/me DB lookup result for user_id={user_id}: {'found' if user else 'not found'}")
     if not user:
         await message.answer("Ты ещё не заливал чидори спермой браток 🤷")
         return
@@ -130,9 +146,12 @@ async def me_handler(message: types.Message):
         f"Суммарно залито: {user.total} л"
     )
 
+
 # 🔹 запуск
 async def main():
+    logger.info("Bot is starting up")
     while True:
+
         try:
             logger.info("Starting polling...")
             await dp.start_polling(bot)
