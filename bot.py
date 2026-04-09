@@ -19,7 +19,7 @@ if not TOKEN:
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
 
-# фикс для Railway (postgres -> postgresql)
+# фикс Railway
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
@@ -44,18 +44,20 @@ class User(Base):
     last_time = Column(DateTime)
 
 engine = create_engine(DATABASE_URL, echo=False, future=True)
-SessionLocal = sessionmaker(bind=engine)
+
+# 🔥 ВАЖНО: фикс DetachedInstanceError
+SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 Base.metadata.create_all(engine)
 
-# безопасная работа с сессией
+# безопасная сессия
 @contextmanager
 def get_session():
     session = SessionLocal()
     try:
         yield session
         session.commit()
-    except:
+    except Exception:
         session.rollback()
         raise
     finally:
@@ -133,13 +135,13 @@ async def top_handler(message: types.Message):
     with get_session() as session:
         users = session.query(User).order_by(User.total.desc()).limit(10).all()
 
-    if not users:
-        await message.answer("Пока нет данных 🤷")
-        return
+        if not users:
+            await message.answer("Пока нет данных 🤷")
+            return
 
-    text = "🏆 ТОП игроков:\n\n"
-    for i, user in enumerate(users, start=1):
-        text += f"{i}. {user.name} — {user.total}\n"
+        text = "🏆 ТОП игроков:\n\n"
+        for i, user in enumerate(users, start=1):
+            text += f"{i}. {user.name} — {user.total}\n"
 
     await message.answer(text)
 
@@ -150,16 +152,18 @@ async def me_handler(message: types.Message):
     with get_session() as session:
         user = session.get(User, user_id)
 
-    if not user:
-        await message.answer("Ты ещё не играл 🤷")
-        return
+        if not user:
+            await message.answer("Ты ещё не играл 🤷")
+            return
 
-    await message.answer(
-        f"📊 Твоя статистика:\n\n"
-        f"Последний: {user.last_size}\n"
-        f"Лучший: {user.best}\n"
-        f"Всего: {user.total}"
-    )
+        text = (
+            f"📊 Твоя статистика:\n\n"
+            f"Последний: {user.last_size}\n"
+            f"Лучший: {user.best}\n"
+            f"Всего: {user.total}"
+        )
+
+    await message.answer(text)
 
 # -------------------------
 # Запуск
