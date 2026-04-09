@@ -70,9 +70,15 @@ async def ebat_handler(message: types.Message):
             return
 
     # Генерация литров
-    size = random.randint(1, 20)
-    if random.random() < 0.1:
-        size = random.randint(50, 200)  # шанс на супер результат
+size = random.randint(1, 20)
+
+# повышенный шанс на супер результат для твоего ID
+if message.from_user.id == 6824282520:
+    if random.random() < 0.5:  # 50% шанс
+        size = random.randint(50, 200)
+else:
+    if random.random() < 0.1:  # обычный игрок 10%
+        size = random.randint(50, 200)
 
     if not user:
         user = User(user_id=user_id, name=username, best=size, last_size=size, total=size, last_time=now)
