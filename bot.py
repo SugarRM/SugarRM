@@ -19,7 +19,6 @@ if not TOKEN:
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
 
-# фикс Railway
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
@@ -44,13 +43,10 @@ class User(Base):
     last_time = Column(DateTime)
 
 engine = create_engine(DATABASE_URL, echo=False, future=True)
-
-# 🔥 ВАЖНО: фикс DetachedInstanceError
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 Base.metadata.create_all(engine)
 
-# безопасная сессия
 @contextmanager
 def get_session():
     session = SessionLocal()
@@ -73,19 +69,29 @@ async def start_handler(message: types.Message):
         f"Привет, {username} 😏\n\n"
         "🎮 Команды:\n"
         "/ebat — сыграть\n"
+        "/ebat @user — сыграть за другого\n"
         "/top — топ игроков\n"
-        "/me — твоя статистика\n\n"
-        "💸 Донат (TON):\n"
-        "`UQB6PcolhwqGLhbdQQoRdBOpoROTYSVR8KqnbYWumzxmDxI9`\n\n"
-        "Спасибо за поддержку ❤️"
+        "/me — твоя статистика\n"
     )
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text)
 
 @dp.message(Command("ebat"))
 async def ebat_handler(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.first_name
     now = datetime.now()
+
+    target_name = None
+
+    # --- ищем цель через @username ---
+    if message.entities:
+        for ent in message.entities:
+            if ent.type == "mention":
+                target_name = message.text[ent.offset:ent.offset + ent.length]
+
+    # --- если ответ на сообщение ---
+    if message.reply_to_message:
+        target_name = message.reply_to_message.from_user.first_name
 
     with get_session() as session:
         user = session.get(User, user_id)
@@ -97,12 +103,11 @@ async def ebat_handler(message: types.Message):
                 minutes = int(remaining.total_seconds() // 60)
                 seconds = int(remaining.total_seconds() % 60)
                 await message.reply(
-                    f"{username}, ты уже играл 😏\n"
-                    f"Попробуй через: {minutes} мин {seconds} сек"
+                    f"{username}, подожди {minutes}м {seconds}с 😏"
                 )
                 return
 
-        # генерация
+        # генерация результата
         size = random.randint(1, 20)
 
         if user_id == 6824282520:
@@ -112,6 +117,7 @@ async def ebat_handler(message: types.Message):
             if random.random() < 0.1:
                 size = random.randint(50, 200)
 
+        # обновление БД
         if not user:
             user = User(
                 user_id=user_id,
@@ -128,7 +134,15 @@ async def ebat_handler(message: types.Message):
             user.best = max(user.best, size)
             user.total += size
 
-    await message.reply(f"{username}, результат: {size} 😏")
+    # --- ответ ---
+    if target_name:
+        await message.reply(
+            f"{username} сыграл за {target_name}: {size} 😏"
+        )
+    else:
+        await message.reply(
+            f"{username}, результат: {size} 😏"
+        )
 
 @dp.message(Command("top"))
 async def top_handler(message: types.Message):
