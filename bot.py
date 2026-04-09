@@ -1,4 +1,5 @@
 import asyncio
+import os
 import random
 from datetime import datetime, timedelta
 
@@ -28,6 +29,7 @@ class User(Base):
     total = Column(Integer, default=0)
     last_time = Column(DateTime)
 
+os.makedirs('/app/data', exist_ok=True)
 engine = create_engine(DB_FILE, echo=False, future=True)
 Base.metadata.create_all(engine)
 session = Session(engine)
