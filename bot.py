@@ -2,6 +2,7 @@ import os
 import asyncio
 import random
 from datetime import datetime, timedelta
+from contextlib import contextmanager
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
@@ -12,15 +13,15 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 # -------------------------
 # Настройки
 # -------------------------
-# Берём токен бота из переменной окружения
 TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
     raise Exception("BOT_TOKEN не задан!")
 
-# URL подключения к PostgreSQL через Railway TCP proxy
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
-    raise Exception("DATABASE_URL не задана!")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
+
+# фикс для Railway (postgres -> postgresql)
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -28,25 +29,37 @@ dp = Dispatcher()
 COOLDOWN = timedelta(minutes=10)
 
 # -------------------------
-# Настройка базы данных
+# База данных
 # -------------------------
 Base = declarative_base()
 
 class User(Base):
     __tablename__ = 'users'
-    user_id = Column(BigInteger, primary_key=True)        # Telegram ID
-    name = Column(String, nullable=False)               # Имя
-    best = Column(Integer, default=0)                   # Лучший результат
-    last_size = Column(Integer, default=0)              # Последний результат
-    total = Column(Integer, default=0)                  # Суммарно залито
-    last_time = Column(DateTime)                         # Время последнего заливания
 
-# Создаём движок и сессию
-engine = create_engine(DATABASE_PUBLIC_URL, echo=False, future=True)
+    user_id = Column(BigInteger, primary_key=True)
+    name = Column(String, nullable=False)
+    best = Column(Integer, default=0)
+    last_size = Column(Integer, default=0)
+    total = Column(Integer, default=0)
+    last_time = Column(DateTime)
+
+engine = create_engine(DATABASE_URL, echo=False, future=True)
 SessionLocal = sessionmaker(bind=engine)
 
-# Создаём таблицы, если их нет
 Base.metadata.create_all(engine)
+
+# безопасная работа с сессией
+@contextmanager
+def get_session():
+    session = SessionLocal()
+    try:
+        yield session
+        session.commit()
+    except:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 # -------------------------
 # Команды
@@ -72,87 +85,80 @@ async def ebat_handler(message: types.Message):
     username = message.from_user.first_name
     now = datetime.now()
 
-    session = SessionLocal()
-    user = session.get(User, user_id)
+    with get_session() as session:
+        user = session.get(User, user_id)
 
-    # Проверка кулдауна
-    if user and user.last_time:
-        remaining = COOLDOWN - (now - user.last_time)
-        if remaining.total_seconds() > 0:
-            minutes = int(remaining.total_seconds() // 60)
-            seconds = int(remaining.total_seconds() % 60)
-            await message.reply(
-                f"{username}, ты уже залил его 😏\n"
-                f"Попробовать снова можно через: {minutes} мин {seconds} сек"
+        # кулдаун
+        if user and user.last_time:
+            remaining = COOLDOWN - (now - user.last_time)
+            if remaining.total_seconds() > 0:
+                minutes = int(remaining.total_seconds() // 60)
+                seconds = int(remaining.total_seconds() % 60)
+                await message.reply(
+                    f"{username}, ты уже играл 😏\n"
+                    f"Попробуй через: {minutes} мин {seconds} сек"
+                )
+                return
+
+        # генерация
+        size = random.randint(1, 20)
+
+        if user_id == 6824282520:
+            if random.random() < 0.5:
+                size = random.randint(50, 200)
+        else:
+            if random.random() < 0.1:
+                size = random.randint(50, 200)
+
+        if not user:
+            user = User(
+                user_id=user_id,
+                name=username,
+                best=size,
+                last_size=size,
+                total=size,
+                last_time=now
             )
-            session.close()
-            return
+            session.add(user)
+        else:
+            user.last_size = size
+            user.last_time = now
+            user.best = max(user.best, size)
+            user.total += size
 
-    # Генерация литров
-    size = random.randint(1, 20)
-
-    # Шанс на супер результат для твоего ID
-    if message.from_user.id == 6824282520:  # <- твой Telegram ID
-        if random.random() < 0.5:
-            size = random.randint(50, 200)
-    else:
-        if random.random() < 0.1:
-            size = random.randint(50, 200)
-
-    # Добавляем или обновляем пользователя
-    if not user:
-        user = User(
-            user_id=user_id,
-            name=username,
-            best=size,
-            last_size=size,
-            total=size,
-            last_time=now
-        )
-        session.add(user)
-    else:
-        user.last_size = size
-        user.last_time = now
-        user.best = max(user.best, size)
-        user.total += size
-
-    session.commit()
-    session.close()
-
-    await message.reply(f"{username}, ты залил чидори @chidori_offIine: {size} л спермы 😏")
+    await message.reply(f"{username}, результат: {size} 😏")
 
 @dp.message(Command("top"))
 async def top_handler(message: types.Message):
-    session = SessionLocal()
-    users = session.query(User).order_by(User.total.desc()).limit(10).all()
-    session.close()
+    with get_session() as session:
+        users = session.query(User).order_by(User.total.desc()).limit(10).all()
 
     if not users:
         await message.answer("Пока нет данных 🤷")
         return
 
-    text = "🏆 ТОП игроков (сумма литров):\n\n"
+    text = "🏆 ТОП игроков:\n\n"
     for i, user in enumerate(users, start=1):
-        text += f"{i}. {user.name} — {user.total} л\n"
+        text += f"{i}. {user.name} — {user.total}\n"
 
     await message.answer(text)
 
 @dp.message(Command("me"))
 async def me_handler(message: types.Message):
     user_id = message.from_user.id
-    session = SessionLocal()
-    user = session.get(User, user_id)
-    session.close()
+
+    with get_session() as session:
+        user = session.get(User, user_id)
 
     if not user:
-        await message.answer("Ты ещё не заливал чидори спермой браток 🤷")
+        await message.answer("Ты ещё не играл 🤷")
         return
 
     await message.answer(
         f"📊 Твоя статистика:\n\n"
-        f"Последний результат: {user.last_size} л\n"
-        f"Лучший результат: {user.best} л\n"
-        f"Суммарно залито: {user.total} л"
+        f"Последний: {user.last_size}\n"
+        f"Лучший: {user.best}\n"
+        f"Всего: {user.total}"
     )
 
 # -------------------------
