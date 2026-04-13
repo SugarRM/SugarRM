@@ -12,7 +12,7 @@ from sqlalchemy import create_engine, Column, Integer, BigInteger, String, DateT
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 # -------------------------
-# CONFI
+# CONFIG
 # -------------------------
 TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
@@ -22,7 +22,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise Exception("DATABASE_URL не задан!")
 
-# фикс Railway URL (иногда старый формат)
+# фикс Railway URL
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
@@ -33,12 +33,13 @@ dp = Dispatcher()
 
 COOLDOWN = timedelta(minutes=10)
 
+# ❌ БАН
+BANNED_USERS = [5681014310]
+
 # -------------------------
 # DB
 # -------------------------
 Base = declarative_base()
-
-BANNED_USERS = [5681014310]  # сюда вставь ID
 
 class User(Base):
     __tablename__ = "users"
@@ -52,7 +53,7 @@ class User(Base):
 
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True,   # 🔥 важно: проверяет живое ли соединение
+    pool_pre_ping=True,
     pool_recycle=300,
     future=True
 )
@@ -60,7 +61,7 @@ engine = create_engine(
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 # -------------------------
-# SAFE DB INIT (ВАЖНО)
+# INIT DB
 # -------------------------
 def init_db():
     for i in range(10):
@@ -102,17 +103,12 @@ async def start(message: types.Message):
 async def ebat(message: types.Message):
     user_id = message.from_user.id
     name = message.from_user.first_name
+    now = datetime.now()
 
-    # ❌ блок
+    # ❌ БАН
     if user_id in BANNED_USERS:
         await message.answer(f"{name}, тебе нельзя только в тебя 😏")
         return
-
-@dp.message(Command("ebat"))
-async def ebat(message: types.Message):
-    user_id = message.from_user.id
-    name = message.from_user.first_name
-    now = datetime.now()
 
     with get_session() as session:
         user = session.get(User, user_id)
@@ -121,12 +117,22 @@ async def ebat(message: types.Message):
         if user and user.last_time:
             diff = COOLDOWN - (now - user.last_time)
             if diff.total_seconds() > 0:
-                await message.reply(f"стоять ковбой ты уже залил в чидори {int(diff.total_seconds())} сек 😏")
+                await message.reply(
+                    f"стоять ковбой ты уже залил в чидори {int(diff.total_seconds())} сек 😏"
+                )
                 return
 
-        # result
+        # шанс отказа
+        if random.random() < 0.15:
+            await message.answer(
+                f"{name}, Чидори сегодня не принимает 😐"
+            )
+            return
+
+        # результат
         size = random.randint(1, 20)
 
+        # бонус для тебя 😏
         if user_id == 6824282520 and random.random() < 0.5:
             size = random.randint(50, 200)
 
@@ -147,14 +153,18 @@ async def ebat(message: types.Message):
             user.best = max(user.best, size)
             user.total += size
 
-    await message.answer(f"{name}:ты залил Чидори {size} литров спермы 😏")
+    await message.answer(f"{name}: ты залил Чидори {size} литров спермы 😏")
 
 @dp.message(Command("top"))
 async def top(message: types.Message):
     with get_session() as session:
         users = session.query(User).order_by(User.total.desc()).limit(10).all()
 
-    text = "🏆 топ кто больше залил спермы в чидори:\n\n"
+    if not users:
+        await message.answer("Пока пусто 🤷")
+        return
+
+    text = "🏆 топ кто больше залил в чидори:\n\n"
     for i, u in enumerate(users, 1):
         text += f"{i}. {u.name} — {u.total}\n"
 
@@ -168,7 +178,7 @@ async def me(message: types.Message):
         user = session.get(User, user_id)
 
     if not user:
-        await message.answer("Ты ещё не играл")
+        await message.answer("Ты ещё не заливал в чидори")
         return
 
     await message.answer(
@@ -179,7 +189,7 @@ async def me(message: types.Message):
     )
 
 # -------------------------
-# START BOT
+# START
 # -------------------------
 async def main():
     print("🤖 BOT STARTED")
