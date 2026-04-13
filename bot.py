@@ -142,7 +142,7 @@ async def top(message: types.Message):
     with get_session() as session:
         users = session.query(User).order_by(User.total.desc()).limit(10).all()
 
-    text = "🏆 TOP:\n\n"
+    text = "🏆 топ кто больше залил спермы в чидори:\n\n"
     for i, u in enumerate(users, 1):
         text += f"{i}. {u.name} — {u.total}\n"
 
