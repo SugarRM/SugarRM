@@ -109,7 +109,7 @@ async def ebat(message: types.Message):
         if user and user.last_time:
             diff = COOLDOWN - (now - user.last_time)
             if diff.total_seconds() > 0:
-                await message.reply(f"Подожди {int(diff.total_seconds())} сек 😏")
+                await message.reply(f"стоять ковбой ты уже залил в чидори {int(diff.total_seconds())} сек 😏")
                 return
 
         # result
@@ -135,7 +135,7 @@ async def ebat(message: types.Message):
             user.best = max(user.best, size)
             user.total += size
 
-    await message.answer(f"{name}: результат {size} 😏")
+    await message.answer(f"{name}:ты залил Чидори {size} литров спермы 😏")
 
 @dp.message(Command("top"))
 async def top(message: types.Message):
