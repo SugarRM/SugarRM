@@ -38,6 +38,8 @@ COOLDOWN = timedelta(minutes=10)
 # -------------------------
 Base = declarative_base()
 
+BANNED_USERS = [5681014310]  # сюда вставь ID
+
 class User(Base):
     __tablename__ = "users"
 
@@ -95,6 +97,16 @@ async def start(message: types.Message):
         "/top — топ\n"
         "/me — статистика"
     )
+
+@dp.message(Command("ebat"))
+async def ebat(message: types.Message):
+    user_id = message.from_user.id
+    name = message.from_user.first_name
+
+    # ❌ блок
+    if user_id in BANNED_USERS:
+        await message.answer(f"{name}, тебе нельзя только в тебя 😏")
+        return
 
 @dp.message(Command("ebat"))
 async def ebat(message: types.Message):
